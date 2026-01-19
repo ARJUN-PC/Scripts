@@ -13,16 +13,16 @@ echo "Date        : $(date)"
 echo
 
 # ------------------------------------------------------
-echo "---- Environment Check (envchk) ----"
-bash <(curl -ks https://codesilo.dimenoc.com/codex/envchk/-/raw/master/envchk)
-echo
-
-# ------------------------------------------------------
 echo "---- Server Details ----"
 echo "Hostname    : $(hostname)"
 echo "Uptime      : $(uptime -p)"
 echo "OS          : $(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')"
 echo "Kernel      : $(uname -r)"
+echo
+
+# ------------------------------------------------------
+echo "---- Environment Check (envchk) ----"
+bash <(curl -ks https://codesilo.dimenoc.com/codex/envchk/-/raw/master/envchk)
 echo
 
 # ------------------------------------------------------
