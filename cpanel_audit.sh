@@ -26,6 +26,19 @@ bash <(curl -ks https://codesilo.dimenoc.com/codex/envchk/-/raw/master/envchk)
 echo
 
 # ------------------------------------------------------
+echo "---- Control Panel Detection ----"
+if [[ -x /usr/local/cpanel/cpanel ]]; then
+  echo "Control Panel : cPanel"
+  /usr/local/cpanel/cpanel -V
+elif [[ -x /usr/local/directadmin/directadmin ]]; then
+  echo "Control Panel : DirectAdmin"
+  /usr/local/directadmin/directadmin v | head -1
+else
+  echo "Control Panel : Not detected"
+fi
+echo
+
+# ------------------------------------------------------
 echo "---- CSF Firewall Status ----"
 if systemctl list-unit-files | grep -q csf.service; then
   systemctl status csf --no-pager
@@ -46,15 +59,6 @@ echo
 # ------------------------------------------------------
 echo "---- Drive Health Status ----"
 bash <(curl -ks https://codesilo.dimenoc.com/codex/check-drive-health/-/raw/main/check-drive-health)
-echo
-
-# ------------------------------------------------------
-echo "---- cPanel Version ----"
-if [[ -x /usr/local/cpanel/cpanel ]]; then
-  /usr/local/cpanel/cpanel -V
-else
-  echo "cPanel : Not installed"
-fi
 echo
 
 # ------------------------------------------------------
@@ -146,9 +150,12 @@ echo
 
 # ------------------------------------------------------
 echo "---- Backup Status ----"
+
+# cPanel backup logs (if applicable)
 CPBACKUP_LOG_DIR="/usr/local/cpanel/logs/cpbackup"
 
 if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
+  echo "cPanel Backup Logs:"
   LATEST_LOG=$(ls -1t $CPBACKUP_LOG_DIR/*.log 2>/dev/null | head -1)
   if [[ -n "$LATEST_LOG" ]]; then
     echo "Latest Log : $(basename "$LATEST_LOG")"
@@ -158,7 +165,26 @@ if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
     echo "No backup logs found"
   fi
 else
-  echo "cPanel backup directory not found"
+  echo "cPanel backup logs : Not present"
+fi
+
+echo
+
+# Generic backup directory (cPanel / DirectAdmin / Custom)
+if [[ -d /backup ]]; then
+  echo "Filesystem Backup Directories (/backup):"
+  for dir in daily weekly monthly; do
+    BACKUP_PATH="/backup/$dir"
+    if [[ -d "$BACKUP_PATH" ]]; then
+      echo "-- $BACKUP_PATH --"
+      ls -lh "$BACKUP_PATH" | head -20
+    else
+      echo "$BACKUP_PATH : Not found"
+    fi
+    echo
+  done
+else
+  echo "/backup directory not found"
 fi
 
 echo
