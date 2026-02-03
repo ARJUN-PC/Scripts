@@ -1,6 +1,6 @@
 #!/bin/bash
 # ======================================================
-# cPanel / DirectAdmin Server Audit Script (READ-ONLY)
+# cPanel / DirectAdmin / Webuzo Server Audit Script (READ-ONLY)
 # Author : Arjun PC
 # Safety : NO reboot | NO restart | NO install | NO change
 # Purpose: Infrastructure & Kernel Audit
@@ -30,9 +30,15 @@ echo "---- Control Panel Detection ----"
 if [[ -x /usr/local/cpanel/cpanel ]]; then
   echo "Control Panel : cPanel"
   /usr/local/cpanel/cpanel -V
+
 elif [[ -x /usr/local/directadmin/directadmin ]]; then
   echo "Control Panel : DirectAdmin"
   /usr/local/directadmin/directadmin v | head -1
+
+elif command -v webuzo >/dev/null 2>&1; then
+  echo "Control Panel : Webuzo"
+  webuzo -v
+
 else
   echo "Control Panel : Not detected"
 fi
@@ -151,9 +157,8 @@ echo
 # ------------------------------------------------------
 echo "---- Backup Status ----"
 
-# cPanel backup logs (if applicable)
+# cPanel backup logs
 CPBACKUP_LOG_DIR="/usr/local/cpanel/logs/cpbackup"
-
 if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
   echo "cPanel Backup Logs:"
   LATEST_LOG=$(ls -1t $CPBACKUP_LOG_DIR/*.log 2>/dev/null | head -1)
@@ -167,10 +172,20 @@ if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
 else
   echo "cPanel backup logs : Not present"
 fi
-
 echo
 
-# Generic backup directory (cPanel / DirectAdmin / Custom)
+# Webuzo backup logs
+WEBUZO_BACKUP_LOG="/var/webuzo/logs/admin_auto_backup.log"
+if [[ -f "$WEBUZO_BACKUP_LOG" ]]; then
+  echo "Webuzo Backup Log:"
+  echo "Log File : $WEBUZO_BACKUP_LOG"
+  tail -20 "$WEBUZO_BACKUP_LOG"
+else
+  echo "Webuzo backup log : Not present"
+fi
+echo
+
+# Generic filesystem backups
 if [[ -d /backup ]]; then
   echo "Filesystem Backup Directories (/backup):"
   for dir in daily weekly monthly; do
