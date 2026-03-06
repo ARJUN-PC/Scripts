@@ -79,6 +79,35 @@ fi
 echo
 
 # ------------------------------------------------------
+echo "---- Apache Service Status ----"
+if systemctl list-unit-files | grep -q httpd.service; then
+  systemctl status httpd --no-pager
+elif systemctl list-unit-files | grep -q apache2.service; then
+  systemctl status apache2 --no-pager
+else
+  echo "Apache service not found"
+fi
+echo
+
+# ------------------------------------------------------
+echo "---- Nginx Service Status ----"
+if systemctl list-unit-files | grep -q nginx.service; then
+  systemctl status nginx --no-pager
+else
+  echo "nginx.service : Not installed"
+fi
+echo
+
+# ------------------------------------------------------
+echo "---- Exim Mail Queue ----"
+if command -v exim >/dev/null 2>&1; then
+  echo "Messages in queue : $(exim -bpc)"
+else
+  echo "Exim not installed"
+fi
+echo
+
+# ------------------------------------------------------
 echo "---- Kernel Audit Status (READ-ONLY) ----"
 
 RUNNING_KERNEL=$(uname -r)
@@ -185,7 +214,16 @@ else
 fi
 echo
 
-# Generic filesystem backups
+# Root backup directory listing
+if [[ -d /backup ]]; then
+  echo "Backup Root Directory (/backup):"
+  ls -lh /backup
+  echo
+else
+  echo "/backup directory not found"
+fi
+
+# Backup folders
 if [[ -d /backup ]]; then
   echo "Filesystem Backup Directories (/backup):"
   for dir in daily weekly monthly; do
@@ -198,8 +236,6 @@ if [[ -d /backup ]]; then
     fi
     echo
   done
-else
-  echo "/backup directory not found"
 fi
 
 echo
