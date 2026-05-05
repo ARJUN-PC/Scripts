@@ -26,6 +26,11 @@ bash <(curl -ks https://codesilo.dimenoc.com/codex/envchk/-/raw/master/envchk)
 echo
 
 # ------------------------------------------------------
+echo "---- Quick Service Check ----"
+bash <(curl -ks https://codesilo.dimenoc.com/giovanni.r/check-services/-/raw/main/check-services.sh)
+echo
+
+# ------------------------------------------------------
 echo "---- Control Panel Detection ----"
 if [[ -x /usr/local/cpanel/cpanel ]]; then
   echo "Control Panel : cPanel"
