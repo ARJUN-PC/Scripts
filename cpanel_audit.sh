@@ -422,13 +422,11 @@ echo "======================================================"
 echo
 echo '**`Observations`**'
 echo
-echo "s~~~"
 
 for observation in "${OBSERVATIONS[@]}"; do
     echo "$observation"
 done
 
-echo "s~~~"
 
 echo
 echo "======================================================"
