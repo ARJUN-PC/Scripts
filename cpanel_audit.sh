@@ -119,9 +119,11 @@ section_start "MySQL / MariaDB Service Status"
 if systemctl list-unit-files | grep -q mariadb.service; then
     DB_SERVICE="mariadb"
     systemctl status mariadb --no-pager
+
 elif systemctl list-unit-files | grep -q mysqld.service; then
     DB_SERVICE="mysqld"
     systemctl status mysqld --no-pager
+
 else
     DB_SERVICE=""
     echo "MySQL/MariaDB service not found"
@@ -145,9 +147,11 @@ section_start "Apache Service Status"
 if systemctl list-unit-files | grep -q httpd.service; then
     APACHE_SERVICE="httpd"
     systemctl status httpd --no-pager
+
 elif systemctl list-unit-files | grep -q apache2.service; then
     APACHE_SERVICE="apache2"
     systemctl status apache2 --no-pager
+
 else
     APACHE_SERVICE=""
     echo "Apache service not found"
@@ -225,9 +229,11 @@ fi
 if [[ "$RUNNING_KERNEL" != "$INSTALLED_KERNEL" ]]; then
     echo "Status           : Reboot required (new kernel already installed)"
     add_observation "New kernel is installed but not running. Server reboot is required to load the installed kernel."
+
 elif [[ -n "$AVAILABLE_KERNEL" ]]; then
     echo "Status           : Kernel update available (NOT installed)"
     add_observation "Kernel update available ($AVAILABLE_KERNEL). Installation pending."
+
 else
     echo "Status           : Fully up to date"
     add_observation "Kernel is up to date."
@@ -396,23 +402,23 @@ fi
 section_end
 
 # ------------------------------------------------------
-section_start "Disk Space Observation"
+# Disk Space Observation (included in final observations)
 
 ROOT_USAGE=$(df -P / | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
-
-echo "Root Filesystem Usage : ${ROOT_USAGE}%"
 
 if [[ "$ROOT_USAGE" =~ ^[0-9]+$ ]]; then
     if (( ROOT_USAGE >= 90 )); then
         add_observation "Critical disk usage detected on root filesystem (${ROOT_USAGE}%). Immediate investigation recommended."
+
     elif (( ROOT_USAGE >= 80 )); then
         add_observation "Root filesystem disk usage is high (${ROOT_USAGE}%). Kindly monitor."
+
     else
         add_observation "Root filesystem disk usage is within the configured threshold (${ROOT_USAGE}%)."
     fi
+else
+    add_observation "Unable to determine root filesystem disk usage."
 fi
-
-section_end
 
 # ------------------------------------------------------
 echo "======================================================"
@@ -426,7 +432,6 @@ echo
 for observation in "${OBSERVATIONS[@]}"; do
     echo "$observation"
 done
-
 
 echo
 echo "======================================================"
