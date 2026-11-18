@@ -8,6 +8,7 @@
 # ======================================================
 
 OBSERVATIONS=()
+PANEL="Unknown"
 
 add_observation() {
     OBSERVATIONS+=("- $1")
@@ -23,6 +24,60 @@ section_start() {
 section_end() {
     echo "s~~~"
     echo
+}
+
+# Backup directory inspection function
+check_backup_directory() {
+    local LABEL="$1"
+    local BACKUP_PATH="$2"
+    local FILE_COUNT
+    local LATEST_FILE
+    local FILE_TIME
+    local FILE_NAME
+
+    echo
+    echo "$LABEL"
+    echo "Directory : $BACKUP_PATH"
+
+    if [[ ! -d "$BACKUP_PATH" ]]; then
+        echo "Status    : Directory not found"
+        add_observation "$LABEL: Backup directory not found ($BACKUP_PATH)."
+        return
+    fi
+
+    FILE_COUNT=$(find "$BACKUP_PATH" -maxdepth 5 -type f 2>/dev/null | wc -l)
+
+    echo "Files Found : $FILE_COUNT"
+
+    if (( FILE_COUNT > 0 )); then
+
+        LATEST_FILE=$(find "$BACKUP_PATH" -maxdepth 5 -type f \
+            -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1)
+
+        if [[ -n "$LATEST_FILE" ]]; then
+            FILE_TIME="${LATEST_FILE%% *}"
+            FILE_NAME="${LATEST_FILE#* }"
+
+            echo "Latest Backup : $FILE_NAME"
+            echo "Last Modified : $(date -d "@$FILE_TIME" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)"
+
+            echo "Status        : Backup files found"
+
+            add_observation "$LABEL: $FILE_COUNT backup file(s) found. Latest file: $(basename "$FILE_NAME"), last modified: $(date -d "@$FILE_TIME" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)."
+        else
+            echo "Status : Unable to determine latest backup file"
+            add_observation "$LABEL: Backup files exist, but the latest file could not be determined."
+        fi
+
+        echo
+        echo "Directory Contents:"
+        ls -lah "$BACKUP_PATH" | head -20
+
+    else
+        echo "Status : No backup files found"
+
+        add_observation "$LABEL: No backup files found in $BACKUP_PATH."
+    fi
 }
 
 echo "======================================================"
@@ -57,14 +112,17 @@ section_end
 section_start "Control Panel Detection"
 
 if [[ -x /usr/local/cpanel/cpanel ]]; then
+    PANEL="cPanel"
     echo "Control Panel : cPanel"
     /usr/local/cpanel/cpanel -V
 
 elif [[ -x /usr/local/directadmin/directadmin ]]; then
+    PANEL="DirectAdmin"
     echo "Control Panel : DirectAdmin"
     /usr/local/directadmin/directadmin v | head -1
 
 elif command -v webuzo >/dev/null 2>&1; then
+    PANEL="Webuzo"
     echo "Control Panel : Webuzo"
     webuzo -v
 
@@ -105,8 +163,10 @@ echo "$DRIVE_OUTPUT"
 
 if echo "$DRIVE_OUTPUT" | grep -qiE 'critical|failed|unhealthy|degraded|SMART error|health warning'; then
     add_observation "Drive health issue detected. Kindly review the Drive Health Status section."
+
 elif echo "$DRIVE_OUTPUT" | grep -qiE 'healthy|health: passed|drive is healthy'; then
     add_observation "Drive health check completed. No drive issues reported."
+
 else
     add_observation "Drive health check completed. Kindly review the output to confirm drive health."
 fi
@@ -137,6 +197,19 @@ if [[ -n "$DB_SERVICE" ]]; then
     fi
 else
     add_observation "MySQL/MariaDB service not found."
+fi
+
+section_end
+
+# ------------------------------------------------------
+section_start "MySQL / MariaDB Version"
+
+if command -v mysqladmin >/dev/null 2>&1; then
+    mysqladmin version
+elif command -v mariadb-admin >/dev/null 2>&1; then
+    mariadb-admin version
+else
+    echo "MySQL/MariaDB version command not found"
 fi
 
 section_end
@@ -189,6 +262,7 @@ section_start "Exim Mail Queue"
 
 if command -v exim >/dev/null 2>&1; then
     MAIL_QUEUE=$(exim -bpc 2>/dev/null)
+
     echo "Messages in queue : $MAIL_QUEUE"
 
     if [[ "$MAIL_QUEUE" =~ ^[0-9]+$ ]]; then
@@ -308,105 +382,125 @@ section_start "Backup Status"
 
 # cPanel backup logs
 CPBACKUP_LOG_DIR="/usr/local/cpanel/logs/cpbackup"
-BACKUP_FOUND=0
 
-if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
-    echo "cPanel Backup Logs:"
+if [[ "$PANEL" == "cPanel" ]]; then
 
-    LATEST_LOG=$(ls -1t "$CPBACKUP_LOG_DIR"/*.log 2>/dev/null | head -1)
+    if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
+        echo "cPanel Backup Logs:"
 
-    if [[ -n "$LATEST_LOG" ]]; then
-        BACKUP_FOUND=1
+        LATEST_LOG=$(ls -1t "$CPBACKUP_LOG_DIR"/*.log 2>/dev/null | head -1)
 
-        echo "Latest Log : $(basename "$LATEST_LOG")"
+        if [[ -n "$LATEST_LOG" ]]; then
+            echo "Latest Log : $(basename "$LATEST_LOG")"
 
-        COMPLETED=$(grep "Completed at" "$LATEST_LOG" | tail -1)
-        FINAL_STATE=$(grep "Final state" "$LATEST_LOG" | tail -1)
+            COMPLETED=$(grep "Completed at" "$LATEST_LOG" | tail -1)
+            FINAL_STATE=$(grep "Final state" "$LATEST_LOG" | tail -1)
 
-        [[ -n "$COMPLETED" ]] && echo "$COMPLETED"
-        [[ -n "$FINAL_STATE" ]] && echo "$FINAL_STATE"
+            [[ -n "$COMPLETED" ]] && echo "$COMPLETED"
+            [[ -n "$FINAL_STATE" ]] && echo "$FINAL_STATE"
 
-        if echo "$FINAL_STATE" | grep -qiE 'success|completed'; then
-            add_observation "Latest cPanel backup completed successfully."
-        elif echo "$FINAL_STATE" | grep -qiE 'fail|error'; then
-            add_observation "Latest cPanel backup reported a failure. Kindly investigate."
+            if echo "$FINAL_STATE" | grep -qiE 'success|completed'; then
+                add_observation "Latest cPanel backup log indicates successful completion."
+            elif echo "$FINAL_STATE" | grep -qiE 'fail|error'; then
+                add_observation "Latest cPanel backup reported a failure. Kindly investigate."
+            else
+                add_observation "cPanel backup log found, but final backup status could not be confirmed."
+            fi
         else
-            add_observation "cPanel backup log found, but the final backup status could not be confirmed."
+            echo "No backup logs found"
+            add_observation "No cPanel backup log found. Kindly verify backup configuration and status."
         fi
     else
-        echo "No backup logs found"
+        echo "cPanel backup logs : Not present"
+        add_observation "cPanel backup log directory not found."
     fi
-else
-    echo "cPanel backup logs : Not present"
 fi
-
-echo
 
 # Webuzo backup logs
-WEBUZO_BACKUP_LOG="/var/webuzo/logs/admin_auto_backup.log"
+if [[ "$PANEL" == "Webuzo" ]]; then
 
-if [[ -f "$WEBUZO_BACKUP_LOG" ]]; then
-    BACKUP_FOUND=1
+    WEBUZO_BACKUP_LOG="/var/webuzo/logs/admin_auto_backup.log"
 
-    echo "Webuzo Backup Log:"
-    echo "Log File : $WEBUZO_BACKUP_LOG"
-    tail -20 "$WEBUZO_BACKUP_LOG"
+    if [[ -f "$WEBUZO_BACKUP_LOG" ]]; then
+        echo "Webuzo Backup Log:"
+        echo "Log File : $WEBUZO_BACKUP_LOG"
+        tail -20 "$WEBUZO_BACKUP_LOG"
 
-    WEBUZO_LAST_LINE=$(tail -20 "$WEBUZO_BACKUP_LOG")
+        WEBUZO_LAST_LINE=$(tail -20 "$WEBUZO_BACKUP_LOG")
 
-    if echo "$WEBUZO_LAST_LINE" | grep -qiE 'success|completed'; then
-        add_observation "Webuzo backup log contains a success/completion message. Verify the latest backup entry."
-    elif echo "$WEBUZO_LAST_LINE" | grep -qiE 'fail|error'; then
-        add_observation "Webuzo backup log contains failure/error messages. Kindly investigate."
+        if echo "$WEBUZO_LAST_LINE" | grep -qiE 'success|completed'; then
+            add_observation "Webuzo backup log contains a success/completion message. Verify the latest backup entry."
+        elif echo "$WEBUZO_LAST_LINE" | grep -qiE 'fail|error'; then
+            add_observation "Webuzo backup log contains failure/error messages. Kindly investigate."
+        else
+            add_observation "Webuzo backup log found. Backup completion status requires verification."
+        fi
     else
-        add_observation "Webuzo backup log found. Backup completion status requires verification."
+        echo "Webuzo backup log : Not present"
+        add_observation "Webuzo backup log not found. Kindly verify backup configuration."
     fi
-else
-    echo "Webuzo backup log : Not present"
 fi
+
+# ------------------------------------------------------
+# DirectAdmin backup directory
+
+if [[ "$PANEL" == "DirectAdmin" ]]; then
+
+    echo
+    echo "DirectAdmin Backup Configuration:"
+
+    DA_CONFIG="/usr/local/directadmin/conf/directadmin.conf"
+
+    if [[ -f "$DA_CONFIG" ]]; then
+        DA_BACKUP_DIR=$(awk -F= '$1=="admin_backup_dir" {print substr($0,index($0,"=")+1); exit}' "$DA_CONFIG")
+    else
+        DA_BACKUP_DIR=""
+    fi
+
+    # Default DirectAdmin backup directory
+    if [[ -z "$DA_BACKUP_DIR" ]]; then
+        DA_BACKUP_DIR="/home/admin/admin_backups"
+        echo "Configured backup directory not found in directadmin.conf."
+        echo "Checking default backup directory."
+    fi
+
+    check_backup_directory "DirectAdmin Admin Backup" "$DA_BACKUP_DIR"
+
+fi
+
+# ------------------------------------------------------
+# Common filesystem backup directories
 
 echo
+echo "Filesystem Backup Directory Checks:"
 
-# Root backup directory listing
 if [[ -d /backup ]]; then
-    echo "Backup Root Directory (/backup):"
-    ls -lh /backup
+
     echo
+    echo "Backup Root Directory (/backup):"
+    ls -lah /backup | head -20
+
+    check_backup_directory "Daily Backup" "/backup/daily"
+
+    check_backup_directory "Weekly Backup" "/backup/weekly"
+
+    check_backup_directory "Monthly Backup" "/backup/monthly"
+
 else
     echo "/backup directory not found"
+
     add_observation "/backup directory not found."
-fi
-
-# Backup folders
-if [[ -d /backup ]]; then
-    echo "Filesystem Backup Directories (/backup):"
-
-    for dir in daily weekly monthly; do
-        BACKUP_PATH="/backup/$dir"
-
-        if [[ -d "$BACKUP_PATH" ]]; then
-            echo "-- $BACKUP_PATH --"
-            ls -lh "$BACKUP_PATH" | head -20
-        else
-            echo "$BACKUP_PATH : Not found"
-        fi
-
-        echo
-    done
-fi
-
-if (( BACKUP_FOUND == 0 )); then
-    add_observation "No cPanel or Webuzo backup log was found. Kindly verify the backup configuration and status."
 fi
 
 section_end
 
 # ------------------------------------------------------
-# Disk Space Observation (included in final observations)
+# Disk Space Observation
 
 ROOT_USAGE=$(df -P / | awk 'NR==2 {gsub(/%/,"",$5); print $5}')
 
 if [[ "$ROOT_USAGE" =~ ^[0-9]+$ ]]; then
+
     if (( ROOT_USAGE >= 90 )); then
         add_observation "Critical disk usage detected on root filesystem (${ROOT_USAGE}%). Immediate investigation recommended."
 
@@ -416,11 +510,14 @@ if [[ "$ROOT_USAGE" =~ ^[0-9]+$ ]]; then
     else
         add_observation "Root filesystem disk usage is within the configured threshold (${ROOT_USAGE}%)."
     fi
+
 else
     add_observation "Unable to determine root filesystem disk usage."
 fi
 
 # ------------------------------------------------------
+# Final Observations
+
 echo "======================================================"
 echo "          AUDIT COMPLETED (READ-ONLY & SAFE)"
 echo "======================================================"
