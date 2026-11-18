@@ -1,124 +1,170 @@
+
 #!/bin/bash
 # ======================================================
-# cPanel / DirectAdmin / Webuzo Server Audit Script (READ-ONLY)
+# cPanel / DirectAdmin / Webuzo Server Audit Script
 # Author : Arjun PC
-# Safety : NO reboot | NO restart | NO install | NO change
+# Safety : READ-ONLY
 # Purpose: Infrastructure & Kernel Audit
 # ======================================================
 
+section_start() {
+    echo
+    echo "---- $1 ----"
+    echo
+    echo "s~~~"
+}
+
+section_end() {
+    echo "s~~~"
+    echo
+}
+
 echo "======================================================"
-echo "            Server Audit Report"
+echo "              SERVER AUDIT REPORT"
 echo "======================================================"
-echo "Date        : $(date)"
-echo
 
 # ------------------------------------------------------
-echo "---- Server Details ----"
+section_start "Server Details"
+
 echo "Hostname    : $(hostname)"
 echo "Uptime      : $(uptime -p)"
 echo "OS          : $(grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '"')"
 echo "Kernel      : $(uname -r)"
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Environment Check (envchk) ----"
+section_start "Environment Check (envchk)"
+
 bash <(curl -ks https://codesilo.dimenoc.com/codex/envchk/-/raw/master/envchk)
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Quick Service Check ----"
+section_start "Quick Service Check"
+
 bash <(curl -ks https://codesilo.dimenoc.com/giovanni.r/check-services/-/raw/main/check-services.sh)
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Control Panel Detection ----"
+section_start "Control Panel Detection"
+
 if [[ -x /usr/local/cpanel/cpanel ]]; then
-  echo "Control Panel : cPanel"
-  /usr/local/cpanel/cpanel -V
+    echo "Control Panel : cPanel"
+    /usr/local/cpanel/cpanel -V
 
 elif [[ -x /usr/local/directadmin/directadmin ]]; then
-  echo "Control Panel : DirectAdmin"
-  /usr/local/directadmin/directadmin v | head -1
+    echo "Control Panel : DirectAdmin"
+    /usr/local/directadmin/directadmin v | head -1
 
 elif command -v webuzo >/dev/null 2>&1; then
-  echo "Control Panel : Webuzo"
-  webuzo -v
+    echo "Control Panel : Webuzo"
+    webuzo -v
 
 else
-  echo "Control Panel : Not detected"
+    echo "Control Panel : Not detected"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- CSF Firewall Status ----"
+section_start "CSF Firewall Status"
+
 if systemctl list-unit-files | grep -q csf.service; then
-  systemctl status csf --no-pager
+    systemctl status csf --no-pager
 else
-  echo "csf.service : Not installed"
+    echo "csf.service : Not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- LFD Daemon Status ----"
+section_start "LFD Daemon Status"
+
 if systemctl list-unit-files | grep -q lfd.service; then
-  systemctl status lfd --no-pager
+    systemctl status lfd --no-pager
 else
-  echo "lfd.service : Not installed"
+    echo "lfd.service : Not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Drive Health Status ----"
+section_start "Drive Health Status"
+
 bash <(curl -ks https://codesilo.dimenoc.com/codex/check-drive-health/-/raw/main/check-drive-health)
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- MySQL / MariaDB Service Status ----"
+section_start "MySQL / MariaDB Service Status"
+
 if systemctl list-unit-files | grep -q mariadb.service; then
-  systemctl status mariadb --no-pager
+    systemctl status mariadb --no-pager
 elif systemctl list-unit-files | grep -q mysqld.service; then
-  systemctl status mysqld --no-pager
+    systemctl status mysqld --no-pager
 else
-  echo "MySQL/MariaDB service not found"
+    echo "MySQL/MariaDB service not found"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Apache Service Status ----"
+section_start "MySQL / MariaDB Version"
+
+if command -v mysqladmin >/dev/null 2>&1; then
+    mysqladmin version
+elif command -v mariadb-admin >/dev/null 2>&1; then
+    mariadb-admin version
+else
+    echo "MySQL/MariaDB version command not found"
+fi
+
+section_end
+
+# ------------------------------------------------------
+section_start "Apache Service Status"
+
 if systemctl list-unit-files | grep -q httpd.service; then
-  systemctl status httpd --no-pager
+    systemctl status httpd --no-pager
 elif systemctl list-unit-files | grep -q apache2.service; then
-  systemctl status apache2 --no-pager
+    systemctl status apache2 --no-pager
 else
-  echo "Apache service not found"
+    echo "Apache service not found"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Nginx Service Status ----"
+section_start "Nginx Service Status"
+
 if systemctl list-unit-files | grep -q nginx.service; then
-  systemctl status nginx --no-pager
+    systemctl status nginx --no-pager
 else
-  echo "nginx.service : Not installed"
+    echo "nginx.service : Not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Exim Mail Queue ----"
+section_start "Exim Mail Queue"
+
 if command -v exim >/dev/null 2>&1; then
-  echo "Messages in queue : $(exim -bpc)"
+    echo "Messages in queue : $(exim -bpc)"
 else
-  echo "Exim not installed"
+    echo "Exim not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Kernel Audit Status (READ-ONLY) ----"
+section_start "Kernel Audit Status (READ-ONLY)"
 
 RUNNING_KERNEL=$(uname -r)
 
 INSTALLED_KERNEL=$(rpm -q kernel --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' \
-  | sort -V | tail -1)
+    | sort -V | tail -1)
 
 AVAILABLE_KERNEL=$(yum -q list available kernel 2>/dev/null | awk 'NR==2 {print $2}')
 
@@ -126,124 +172,150 @@ echo "Running Kernel   : $RUNNING_KERNEL"
 echo "Installed Kernel : $INSTALLED_KERNEL"
 
 if [[ -n "$AVAILABLE_KERNEL" ]]; then
-  echo "Available Kernel : $AVAILABLE_KERNEL"
+    echo "Available Kernel : $AVAILABLE_KERNEL"
 else
-  echo "Available Kernel : None"
+    echo "Available Kernel : None"
 fi
 
 if [[ "$RUNNING_KERNEL" != "$INSTALLED_KERNEL" ]]; then
-  echo "Status           : Reboot required (new kernel already installed)"
+    echo "Status           : Reboot required (new kernel already installed)"
 elif [[ -n "$AVAILABLE_KERNEL" ]]; then
-  echo "Status           : Kernel update available (NOT installed)"
+    echo "Status           : Kernel update available (NOT installed)"
 else
-  echo "Status           : Fully up to date"
+    echo "Status           : Fully up to date"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Load Average ----"
+section_start "Load Average"
+
 uptime
-if command -v sar >/dev/null; then
-  echo
-  echo "Last 10 Load Samples (sar -q):"
-  sar -q | tail -10
+
+if command -v sar >/dev/null 2>&1; then
+    echo
+    echo "Last 10 Load Samples (sar -q):"
+    sar -q | tail -10
 else
-  echo "sar : Not installed"
+    echo "sar : Not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Disk Usage ----"
+section_start "Disk Usage"
+
 df -hT
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Block Devices (lsblk) ----"
+section_start "Block Devices (lsblk)"
+
 lsblk
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Memory Usage ----"
+section_start "Memory Usage"
+
 free -h
-if command -v sar >/dev/null; then
-  echo
-  echo "Last 10 Memory Samples (sar -r):"
-  sar -r | tail -10
+
+if command -v sar >/dev/null 2>&1; then
+    echo
+    echo "Last 10 Memory Samples (sar -r):"
+    sar -r | tail -10
 else
-  echo "sar : Not installed"
+    echo "sar : Not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- CPU Utilization (mpstat) ----"
-if command -v mpstat >/dev/null; then
-  mpstat 1 3
+section_start "CPU Utilization (mpstat)"
+
+if command -v mpstat >/dev/null 2>&1; then
+    mpstat 1 3
 else
-  echo "mpstat : Not installed"
+    echo "mpstat : Not installed"
 fi
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Top CPU Processes ----"
+section_start "Top CPU Processes"
+
 ps aux --sort=-%cpu | head -10
-echo
+
+section_end
 
 # ------------------------------------------------------
-echo "---- Backup Status ----"
+section_start "Backup Status"
 
 # cPanel backup logs
 CPBACKUP_LOG_DIR="/usr/local/cpanel/logs/cpbackup"
+
 if [[ -d "$CPBACKUP_LOG_DIR" ]]; then
-  echo "cPanel Backup Logs:"
-  LATEST_LOG=$(ls -1t $CPBACKUP_LOG_DIR/*.log 2>/dev/null | head -1)
-  if [[ -n "$LATEST_LOG" ]]; then
-    echo "Latest Log : $(basename "$LATEST_LOG")"
-    grep "Completed at" "$LATEST_LOG"
-    grep "Final state" "$LATEST_LOG"
-  else
-    echo "No backup logs found"
-  fi
+    echo "cPanel Backup Logs:"
+
+    LATEST_LOG=$(ls -1t "$CPBACKUP_LOG_DIR"/*.log 2>/dev/null | head -1)
+
+    if [[ -n "$LATEST_LOG" ]]; then
+        echo "Latest Log : $(basename "$LATEST_LOG")"
+        grep "Completed at" "$LATEST_LOG"
+        grep "Final state" "$LATEST_LOG"
+    else
+        echo "No backup logs found"
+    fi
 else
-  echo "cPanel backup logs : Not present"
+    echo "cPanel backup logs : Not present"
 fi
+
 echo
 
 # Webuzo backup logs
 WEBUZO_BACKUP_LOG="/var/webuzo/logs/admin_auto_backup.log"
+
 if [[ -f "$WEBUZO_BACKUP_LOG" ]]; then
-  echo "Webuzo Backup Log:"
-  echo "Log File : $WEBUZO_BACKUP_LOG"
-  tail -20 "$WEBUZO_BACKUP_LOG"
+    echo "Webuzo Backup Log:"
+    echo "Log File : $WEBUZO_BACKUP_LOG"
+    tail -20 "$WEBUZO_BACKUP_LOG"
 else
-  echo "Webuzo backup log : Not present"
+    echo "Webuzo backup log : Not present"
 fi
+
 echo
 
 # Root backup directory listing
 if [[ -d /backup ]]; then
-  echo "Backup Root Directory (/backup):"
-  ls -lh /backup
-  echo
+    echo "Backup Root Directory (/backup):"
+    ls -lh /backup
+    echo
 else
-  echo "/backup directory not found"
+    echo "/backup directory not found"
 fi
 
 # Backup folders
 if [[ -d /backup ]]; then
-  echo "Filesystem Backup Directories (/backup):"
-  for dir in daily weekly monthly; do
-    BACKUP_PATH="/backup/$dir"
-    if [[ -d "$BACKUP_PATH" ]]; then
-      echo "-- $BACKUP_PATH --"
-      ls -lh "$BACKUP_PATH" | head -20
-    else
-      echo "$BACKUP_PATH : Not found"
-    fi
-    echo
-  done
+    echo "Filesystem Backup Directories (/backup):"
+
+    for dir in daily weekly monthly; do
+        BACKUP_PATH="/backup/$dir"
+
+        if [[ -d "$BACKUP_PATH" ]]; then
+            echo "-- $BACKUP_PATH --"
+            ls -lh "$BACKUP_PATH" | head -20
+        else
+            echo "$BACKUP_PATH : Not found"
+        fi
+
+        echo
+    done
 fi
 
-echo
+section_end
+
+# ------------------------------------------------------
 echo "======================================================"
-echo "        Audit Completed (READ-ONLY & SAFE)"
+echo "       AUDIT COMPLETED (READ-ONLY & SAFE)"
 echo "======================================================"
